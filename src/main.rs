@@ -80,8 +80,8 @@ enum Cell {
 }
 
 fn rect(x: u32, y: u32, width: u32, height: u32, color: &[u8; 4], frame: &mut [u8]){
-    for i in x .. x+width {
-        for j in y .. y+height {
+    for i in max(0,x) .. min(WIDTH, x+width) {
+        for j in max(0,y) .. min(HEIGHT,y+height) {
             let index:usize = ((j * WIDTH + i) * 4) as usize;
             &frame[index..index+4].copy_from_slice(color);
         }
