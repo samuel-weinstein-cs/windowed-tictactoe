@@ -9,6 +9,7 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 use std::cmp::{min, max};
+use image::*;
 
 const WIDTH: u32 = 1280;
 const HEIGHT: u32 = 720;
@@ -82,7 +83,19 @@ enum Cell {
 fn rect(x: u32, y: u32, width: u32, height: u32, color: &[u8; 4], frame: &mut [u8]){
     for i in max(0,x) .. min(WIDTH, x+width) {
         for j in max(0,y) .. min(HEIGHT,y+height) {
-            let index:usize = ((j * WIDTH + i) * 4) as usize;
+            let index = ((j * WIDTH + i) * 4) as usize;
+            &frame[index..index+4].copy_from_slice(color);
+        }
+    }
+}
+
+fn img(x: u32, y: u32, image: &RgbaImage, frame: &mut [u8]){
+    let width = image.width();
+    let height = image.height();
+    for i in max(0,x) .. min(WIDTH, x+width) {
+        for j in max(0,y) .. min(HEIGHT,y+height) {
+            let index = ((j * WIDTH + i) * 4) as usize;
+            let color = image.get_pixel(i,j).channels();
             &frame[index..index+4].copy_from_slice(color);
         }
     }
@@ -91,16 +104,23 @@ fn rect(x: u32, y: u32, width: u32, height: u32, color: &[u8; 4], frame: &mut [u
 struct World {
     size: usize,
     dimension: usize,
-    board: Vec<Cell>
+    board: Vec<Cell>,
+    img: RgbaImage,
 }
 
 impl World {
     /// Create a new `World` instance that can draw a moving box.
     fn new(size: usize, dimension:usize) -> Self {
+        let load_image = open("./images/O3.png");//to_rgba8();
+        let img = match load_image {
+            Ok(v) => v.to_rgba8(),
+            Err(e) => panic!("Problem opening the file: {:?}", e)
+        };
         Self {
             size,
             dimension,
-            board: vec![Cell::Empty; size.pow(dimension as u32)]
+            board: vec![Cell::Empty; size.pow(dimension as u32)],
+            img
         }
     }
 
@@ -115,6 +135,7 @@ impl World {
     fn draw(&self, frame: &mut [u8]) {
         rect(0,0,WIDTH,HEIGHT, &[0xff, 0xff, 0xff, 0xff], frame);// CLEAR SCREEN
         rect(200,200,100,100, &[0x00, 0xff, 0xff, 0xff], frame);// test rectangle
+        img(0,0,&self.img, frame);
 
         // for (i, pixel) in frame.chunks_exact_mut(4).enumerate() {
         //     let x = (i % WIDTH as usize) as i16;
