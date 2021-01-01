@@ -10,9 +10,12 @@ use winit::window::WindowBuilder;
 use winit_input_helper::WinitInputHelper;
 use std::cmp::{min, max};
 use image::*;
+use image::imageops::*;
+use rand::seq::SliceRandom;
 
-const WIDTH: u32 = 1280;
-const HEIGHT: u32 = 720;
+
+const WIDTH: u32 = 640;
+const HEIGHT: u32 = 480;
 
 fn main() -> Result<(), Error> {
     env_logger::init();
@@ -21,7 +24,7 @@ fn main() -> Result<(), Error> {
     let window = {
         let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
         WindowBuilder::new()
-            .with_title("Hello Pixels")
+            .with_title("Multidimensional TicTacToe")
             .with_inner_size(size)
             .with_min_inner_size(size)
             .with_resizable(false)
@@ -34,7 +37,7 @@ fn main() -> Result<(), Error> {
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
         Pixels::new(WIDTH, HEIGHT, surface_texture)?
     };
-    let mut world = World::new(3,2);
+    let mut world = World::new(9,2);
 
 
 
@@ -68,7 +71,7 @@ fn main() -> Result<(), Error> {
 
             // Update internal state and request a redraw
             world.update();
-            //window.request_redraw();
+            // window.request_redraw();
         }
     });
 }
@@ -90,14 +93,9 @@ fn rect(x: u32, y: u32, width: u32, height: u32, color: &[u8; 4], frame: &mut [u
 }
 
 fn img(x: u32, y: u32, image: &RgbaImage, frame: &mut [u8]){
-    let width = image.width();
-    let height = image.height();
-    for i in max(0,x) .. min(WIDTH, x+width) {
-        for j in max(0,y) .. min(HEIGHT,y+height) {
-            let index = ((j * WIDTH + i) * 4) as usize;
-            let color = image.get_pixel(i,j).channels();
-            &frame[index..index+4].copy_from_slice(color);
-        }
+    for(i, j, color) in image.enumerate_pixels(){
+        let index = (((j+y) * WIDTH + (i+x)) * 4) as usize;
+        &frame[index..index+4].copy_from_slice(color.channels());
     }
 }
 
@@ -105,26 +103,46 @@ struct World {
     size: usize,
     dimension: usize,
     board: Vec<Cell>,
-    img: RgbaImage,
+    x_img: Vec<RgbaImage>,
+    o_img: Vec<RgbaImage>,
+    total_width: f32,
+    square_size: u32,
+    stroke_width: u32,
 }
 
 impl World {
     /// Create a new `World` instance that can draw a moving box.
     fn new(size: usize, dimension:usize) -> Self {
-        let load_image = open("./images/O3.png");//to_rgba8();
-        let img = match load_image {
-            Ok(v) => v.to_rgba8(),
-            Err(e) => panic!("Problem opening the file: {:?}", e)
-        };
+        let mut x_img = Vec::new();
+        let mut o_img = Vec::new();
+        let stroke_width = 10;
+        let total_width = min(WIDTH,HEIGHT) as f32 * 0.9;
+        let square_size = ((total_width/size as f32).round() as u32) - stroke_width;
+        for i in 0..4 {
+
+            let load_x = open(format!("./images/X{}.png",i)).expect("Problem opening the file");
+            x_img.push(resize(&load_x.to_rgba8(),square_size,square_size,FilterType::Triangle));
+            // match load_x {
+            //     Ok(v) => ,
+            //     Err(e) => panic!("Problem opening the file: {:?}", e)
+            // };
+            let load_o = open(format!("./images/O{}.png",i)).expect("Problem opening the file");
+            o_img.push(resize(&load_o.to_rgba8(),square_size,square_size,FilterType::Triangle));
+        }
+
         Self {
             size,
             dimension,
             board: vec![Cell::Empty; size.pow(dimension as u32)],
-            img
+            x_img,
+            o_img,
+            total_width,
+            square_size,
+            stroke_width
         }
     }
 
-    /// Update the `World` internal state; bounce the box around the screen.
+    /// Update the `World` internal state; bounce the box around the screen.use rand::Rng;
     fn update(&mut self) {
 
     }
@@ -133,26 +151,50 @@ impl World {
     ///
     /// Assumes the default texture format: [`wgpu::TextureFormat::Rgba8UnormSrgb`]
     fn draw(&self, frame: &mut [u8]) {
-        rect(0,0,WIDTH,HEIGHT, &[0xff, 0xff, 0xff, 0xff], frame);// CLEAR SCREEN
-        rect(200,200,100,100, &[0x00, 0xff, 0xff, 0xff], frame);// test rectangle
-        img(0,0,&self.img, frame);
+        let mut rng = &mut rand::thread_rng();
+        let black = &[0x00, 0x00, 0x00, 0xff];
+        let white = &[0xff, 0xff, 0xff, 0xff];
+        let red   = &[0xff, 0x00, 0x00, 0xff];
+        let blue  = &[0x00, 0xff, 0x00, 0xff];
+        let green = &[0x00, 0x00, 0xff, 0xff];
 
-        // for (i, pixel) in frame.chunks_exact_mut(4).enumerate() {
-        //     let x = (i % WIDTH as usize) as i16;
-        //     let y = (i / WIDTH as usize) as i16;
-        //     let box_size = min(WIDTH,HEIGHT) as f32 * 0.9;
-        //     let inside = x >= (WIDTH  as f32 / 2.0 - box_size / 2.0) as i16
-        //               && x <  (WIDTH  as f32 / 2.0 + box_size / 2.0) as i16
-        //               && y >= (HEIGHT as f32 / 2.0 - box_size / 2.0) as i16
-        //               && y <  (HEIGHT as f32 / 2.0 + box_size / 2.0) as i16;
-        //     let rgba = if inside {
-        //         [0x00, 0x00, 0x00, 0x00]
-        //     } else {
-        //         [0xff, 0xff, 0xff, 0xff]
-        //     };
-        //
-        //
-        //     pixel.copy_from_slice(&rgba);
-        // }
+        let origin = {
+            let x = (WIDTH/2) as f32 - self.total_width/2.;
+            let y = (HEIGHT/2) as f32 - self.total_width/2.;
+            (x.round() as u32,y.round() as u32)
+        };
+        let square_offset = self.square_size+self.stroke_width;
+        rect(0,0,WIDTH,HEIGHT, white, frame);// CLEAR SCREEN
+        // rect(origin.0,origin.1,5,5, red, frame);//origin debug point
+        for i in 1..self.size as u32 {
+            rect(origin.0,
+                 origin.1+(square_offset)*i,
+                 self.total_width.round() as u32,
+                 self.stroke_width,
+                 black, frame);//horizontal lines
+            rect(origin.0+(square_offset)*i,
+                 origin.1,
+                 self.stroke_width,
+                 self.total_width.round() as u32,
+                 black, frame);//vertical lines
+
+        }
+        // rect(200,200,100,100, &[0x00, 0x00, 0x00, 0xff], frame);
+        for y in 0..self.size as u32 {
+            for x in 0..self.size as u32 {
+                img(origin.0+self.stroke_width+square_offset*x,
+                    origin.1+self.stroke_width+square_offset*y,
+                    &self.o_img.choose(&mut rng).expect("No images loaded somehow??"),
+                    frame);
+
+            }
+        }
+        // img(100,0,&self.o_img[0], frame);
+        // img(0,100,&self.x_img[1], frame);
+        // img(100,100,&self.o_img[1], frame);
+        // img(0,200,&self.x_img[2], frame);
+        // img(100,200,&self.o_img[2], frame);
+        // img(0,300,&self.x_img[3], frame);
+        // img(100,300,&self.o_img[3], frame);
     }
 }
