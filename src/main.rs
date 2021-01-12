@@ -6,7 +6,7 @@ use pixels::{Error, Pixels, SurfaceTexture};
 use winit::dpi::LogicalSize;
 use winit::event::{Event, VirtualKeyCode};
 use winit::event_loop::{ControlFlow, EventLoop};
-use winit::window::WindowBuilder;
+use winit::window::{WindowBuilder, Icon};
 use winit_input_helper::WinitInputHelper;
 use std::cmp::{min, max};
 use image::*;
@@ -14,19 +14,29 @@ use image::imageops::*;
 use rand::seq::SliceRandom;
 
 
-const WIDTH: u32 = 640;
-const HEIGHT: u32 = 480;
+const WIDTH: u32 = 1280;
+const HEIGHT: u32 = 720;
 
 fn main() -> Result<(), Error> {
     env_logger::init();
     let event_loop = EventLoop::new();
     let mut input = WinitInputHelper::new();
+
+    let icon = {
+        let icon_img = open("./images/transparentO.png")
+            .expect("Problem opening the file")
+            .to_rgba8();
+        let icon_width = icon_img.width();
+        let icon_height = icon_img.height();
+        Icon::from_rgba(icon_img.into_raw(), icon_width, icon_height)
+    };
     let window = {
         let size = LogicalSize::new(WIDTH as f64, HEIGHT as f64);
         WindowBuilder::new()
             .with_title("Multidimensional TicTacToe")
             .with_inner_size(size)
             .with_min_inner_size(size)
+            .with_window_icon(icon.ok())
             .with_resizable(false)
             .build(&event_loop)
             .unwrap()
