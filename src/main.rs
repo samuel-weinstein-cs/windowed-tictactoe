@@ -37,7 +37,7 @@ fn main() -> Result<(), Error> {
         let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, &window);
         Pixels::new(WIDTH, HEIGHT, surface_texture)?
     };
-    let mut world = World::new(9,2);
+    let mut world = World::new(3,2);
 
 
 
@@ -115,7 +115,7 @@ impl World {
     fn new(size: usize, dimension:usize) -> Self {
         let mut x_img = Vec::new();
         let mut o_img = Vec::new();
-        let stroke_width = 10;
+        let stroke_width = 3;
         let total_width = min(WIDTH,HEIGHT) as f32 * 0.9;
         let square_size = ((total_width/size as f32).round() as u32) - stroke_width;
         for i in 0..4 {
@@ -142,13 +142,20 @@ impl World {
         }
     }
 
-    /// Update the `World` internal state; bounce the box around the screen.use rand::Rng;
     fn update(&mut self) {
 
     }
-
-    /// Draw the `World` state to the frame buffer.
-    ///
+    fn get_cell(&self, coords:&[usize]) -> Result<&Cell, &'static str>{//idk if 'static is necessary?
+        if coords.len() == self.dimension {
+            let mut index=0;
+            for (d, val) in coords.iter().enumerate() {
+                index += val*self.size.pow(d as u32);
+            }
+            Ok(&self.board[index])
+        } else {
+            Err("invalid number of dimensions")
+        }
+    }
     /// Assumes the default texture format: [`wgpu::TextureFormat::Rgba8UnormSrgb`]
     fn draw(&self, frame: &mut [u8]) {
         let mut rng = &mut rand::thread_rng();
@@ -177,24 +184,26 @@ impl World {
                  self.stroke_width,
                  self.total_width.round() as u32,
                  black, frame);//vertical lines
-
         }
         // rect(200,200,100,100, &[0x00, 0x00, 0x00, 0xff], frame);
         for y in 0..self.size as u32 {
             for x in 0..self.size as u32 {
-                img(origin.0+self.stroke_width+square_offset*x,
-                    origin.1+self.stroke_width+square_offset*y,
-                    &self.o_img.choose(&mut rng).expect("No images loaded somehow??"),
-                    frame);
+                // let index:usize = (x+y*self.size as u32) as usize;
+                // let cell = &self.board[index];
+                let cell = self.get_cell(&[x as usize,y as usize]).unwrap();
 
+                match cell {
+                    Cell::X => img(origin.0+self.stroke_width+square_offset*x,
+                             origin.1+self.stroke_width+square_offset*y,
+                             &self.x_img.choose(&mut rng).expect("Image array of size 0"),
+                             frame),
+                    Cell::O => img(origin.0+self.stroke_width+square_offset*x,
+                            origin.1+self.stroke_width+square_offset*y,
+                            &self.o_img.choose(&mut rng).expect("Image array of size 0"),
+                            frame),
+                    Cell::Empty => ()
+                }
             }
         }
-        // img(100,0,&self.o_img[0], frame);
-        // img(0,100,&self.x_img[1], frame);
-        // img(100,100,&self.o_img[1], frame);
-        // img(0,200,&self.x_img[2], frame);
-        // img(100,200,&self.o_img[2], frame);
-        // img(0,300,&self.x_img[3], frame);
-        // img(100,300,&self.o_img[3], frame);
     }
 }
