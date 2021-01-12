@@ -63,15 +63,25 @@ fn main() -> Result<(), Error> {
                 *control_flow = ControlFlow::Exit;
                 return;
             }
+            if input.mouse_pressed(0){
+                // let mouse_pos = input.mouse();
+                match input.mouse() {
+                    Some(position) => {
+                        println!("{:?}", position);
+                        world.update();
+                        window.request_redraw();
+                    }
+                    None => ()
+                }
+            }
 
-            // Resize the window
+            // Resize the window, shouldnt ever run cuz resize is false atm
             if let Some(size) = input.window_resized() {
                 pixels.resize(size.width, size.height);
             }
 
             // Update internal state and request a redraw
-            world.update();
-            // window.request_redraw();
+
         }
     });
 }
@@ -118,7 +128,7 @@ impl World {
         let stroke_width = 3;
         let total_width = min(WIDTH,HEIGHT) as f32 * 0.9;
         let square_size = ((total_width/size as f32).round() as u32) - stroke_width;
-        for i in 0..4 {
+        for i in 0..4 {//there are 4 images for each
 
             let load_x = open(format!("./images/X{}.png",i)).expect("Problem opening the file");
             x_img.push(resize(&load_x.to_rgba8(),square_size,square_size,FilterType::Triangle));
@@ -143,7 +153,7 @@ impl World {
     }
 
     fn update(&mut self) {
-
+        self.board[0] = Cell::X;
     }
     fn get_cell(&self, coords:&[usize]) -> Result<&Cell, &'static str>{//idk if 'static is necessary?
         if coords.len() == self.dimension {
