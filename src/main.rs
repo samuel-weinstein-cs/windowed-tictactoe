@@ -14,8 +14,8 @@ use image::imageops::*;
 use rand::seq::SliceRandom;
 
 
-const WIDTH: u32 = 1280;
-const HEIGHT: u32 = 720;
+const WIDTH: u32 = 640;
+const HEIGHT: u32 = 480;
 
 fn main() -> Result<(), Error> {
     env_logger::init();
@@ -77,11 +77,12 @@ fn main() -> Result<(), Error> {
                 // let mouse_pos = input.mouse();
                 match input.mouse() {
                     Some(position) => {
-                        println!("{:?}", position);
-                        world.update();
+                        let window_scale = window.scale_factor() as f32;
+                        let scaled_position = (position.0/window_scale, position.1/window_scale);
+                        world.move_at(scaled_position, Cell::O);
                         window.request_redraw();
                     }
-                    None => ()
+                    None => {}
                 }
             }
 
@@ -162,22 +163,31 @@ impl World {
         }
     }
 
-    fn update(&mut self) {
-        self.board[0] = Cell::X;
+    fn move_at(&mut self, mouse:(f32,f32), move_cell: Cell) {
+        let origin = {
+            let x = (WIDTH/2) as f32 - self.total_width/2.;
+            let y = (HEIGHT/2) as f32 - self.total_width/2.;
+            (x.round(), y.round())
+        };
+        let x = (self.size as f32 * (mouse.0 - origin.0) / self.total_width).min(self.size as f32-1.) as usize;
+        let y = (self.size as f32 * (mouse.1 - origin.1) / self.total_width).min(self.size as f32-1.) as usize;
+        println!("x: {} y: {}",x,y);
+        let cell = self.get_cell(&[x,y]).unwrap();
+        *cell = move_cell;
     }
-    fn get_cell(&self, coords:&[usize]) -> Result<&Cell, &'static str>{//idk if 'static is necessary?
+    fn get_cell(&mut self, coords:&[usize]) -> Result<&mut Cell, &'static str>{//idk if 'static is necessary?
         if coords.len() == self.dimension {
             let mut index=0;
             for (d, val) in coords.iter().enumerate() {
                 index += val*self.size.pow(d as u32);
             }
-            Ok(&self.board[index])
+            Ok(&mut self.board[index])
         } else {
             Err("invalid number of dimensions")
         }
     }
     /// Assumes the default texture format: [`wgpu::TextureFormat::Rgba8UnormSrgb`]
-    fn draw(&self, frame: &mut [u8]) {
+    fn draw(&mut self, frame: &mut [u8]) {
         let mut rng = &mut rand::thread_rng();
         let black = &[0x00, 0x00, 0x00, 0xff];
         let white = &[0xff, 0xff, 0xff, 0xff];
